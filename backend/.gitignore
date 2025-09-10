@@ -1,0 +1,60 @@
+# =========================
+# uv Project .gitignore
+# =========================
+
+# uv lock and build artifacts
+uv.lock
+.uv/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+pip-wheel-metadata/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Test & coverage reports
+.coverage
+.coverage.*
+.cache
+pytest_cache/
+.pytest_cache/
+.tox/
+.mypy_cache/
+.nox/
+hypothesis/
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Local development overrides
+.env
+.env.*
+!env.example
