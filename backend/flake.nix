@@ -75,6 +75,7 @@
               venvShellHook
               pip
               fastapi
+              fastapi-cli
 
               # Add whatever else you'd like here.
               # pkgs.basedpyright
