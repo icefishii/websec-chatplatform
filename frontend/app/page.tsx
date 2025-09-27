@@ -1,6 +1,25 @@
+"use client";
+
 import Image from "next/image";
 
 export default function Home() {
+  async function callApi() {
+    try {
+      const res = await fetch("/api/v1/");
+      if (!res.ok) {
+        throw new Error(`HTTP error ${res.status}`);
+      }
+      const data = await res.json();
+      alert(JSON.stringify(data, null, 2));
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        alert("Error: " + err.message);
+      } else {
+        alert("Unknown error");
+      }
+    }
+  }
+
   return (
     <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
       <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
@@ -49,6 +68,12 @@ export default function Home() {
           >
             Read our docs
           </a>
+          <button
+            onClick={callApi}
+            className="rounded-full border border-solid border-blue-600 transition-colors flex items-center justify-center bg-blue-500 text-white hover:bg-blue-600 font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
+          >
+            Call API
+          </button>
         </div>
       </main>
       <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
