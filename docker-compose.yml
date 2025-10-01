@@ -20,7 +20,7 @@ services:
     build: ./backend
     restart: always
     environment:
-      DATABASE_URL: postgres://websec:secret@postgres:5432/websec
+      DATABASE_URL: postgresql://websec:secret@postgres:5432/websec
     expose:
       - "8000"
     depends_on:
