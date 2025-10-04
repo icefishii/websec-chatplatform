@@ -3,10 +3,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
+from uuid import UUID
 
 from .database import engine, get_db, Base
-from .models import User, Session as SessionModel
-from .schemas import UserRegister, UserLogin, UserResponse, MessageResponse
+from .models import User, Session as SessionModel, Message
+from .schemas import (
+    UserRegister, UserLogin, UserResponse, MessageResponse, UserSearchResult,
+    MessageCreate, MessageResponseData, ConversationUser
+)
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -93,6 +97,7 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
     # Create new user with hashed password
     new_user = User(
         username=user_data.username,
+        profile_name=user_data.profile_name,
         hashed_password=User.hash_password(user_data.password)
     )
     
@@ -103,6 +108,7 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
     return UserResponse(
         id=new_user.id,
         username=new_user.username,
+        profile_name=new_user.profile_name,
         created_at=new_user.created_at.isoformat()
     )
 
@@ -195,5 +201,237 @@ async def get_me(current_user: User = Depends(get_current_user)):
     return UserResponse(
         id=current_user.id,
         username=current_user.username,
+        profile_name=current_user.profile_name,
         created_at=current_user.created_at.isoformat()
     )
+
+
+@app.get("/users/search", response_model=list[UserSearchResult])
+async def search_users(
+    q: str,
+    limit: int = 20,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Search for users by profile name.
+    
+    Security features:
+    - Requires authentication (prevents anonymous user enumeration)
+    - Only returns profile_name and id (NOT login username)
+    - Case-insensitive search
+    - Pagination with max limit of 50
+    - Search query length validation
+    
+    Query parameters:
+    - q: Search query (min 1 char, max 50 chars)
+    - limit: Max results to return (default 20, max 50)
+    
+    Note: Consider adding rate limiting in production to prevent abuse.
+    """
+    # Validate search query
+    if not q or len(q.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Search query cannot be empty")
+    
+    if len(q) > 50:
+        raise HTTPException(status_code=400, detail="Search query too long (max 50 characters)")
+    
+    # Enforce max limit
+    if limit > 50:
+        limit = 50
+    elif limit < 1:
+        limit = 20
+    
+    # Sanitize search query for SQL LIKE (escape special chars)
+    search_query = q.strip().replace('%', '\\%').replace('_', '\\_')
+    
+    # Case-insensitive search using ILIKE (PostgreSQL)
+    users = db.query(User).filter(
+        User.profile_name.ilike(f"%{search_query}%")
+    ).limit(limit).all()
+    
+    # Return only safe fields (id and profile_name, NOT username)
+    return [
+        UserSearchResult(id=user.id, profile_name=user.profile_name)
+        for user in users
+    ]
+
+
+@app.post("/messages", response_model=MessageResponseData, status_code=201)
+async def send_message(
+    message_data: MessageCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Send a message to another user.
+    
+    Security features:
+    - Requires authentication
+    - Validates recipient exists
+    - Prevents self-messaging
+    - Content length validation (1-5000 chars)
+    - XSS prevention via input sanitization
+    
+    Note: Consider adding rate limiting to prevent spam.
+    """
+    # Check if trying to message yourself
+    if message_data.recipient_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot send message to yourself")
+    
+    # Verify recipient exists
+    recipient = db.query(User).filter(User.id == message_data.recipient_id).first()
+    if not recipient:
+        raise HTTPException(status_code=404, detail="Recipient not found")
+    
+    # Create message
+    new_message = Message(
+        sender_id=current_user.id,
+        recipient_id=message_data.recipient_id,
+        content=message_data.content
+    )
+    
+    db.add(new_message)
+    db.commit()
+    db.refresh(new_message)
+    
+    return MessageResponseData(
+        id=new_message.id,
+        sender_id=new_message.sender_id,
+        recipient_id=new_message.recipient_id,
+        content=new_message.content,
+        created_at=new_message.created_at.isoformat()
+    )
+
+
+@app.get("/messages/conversations", response_model=list[ConversationUser])
+async def get_conversations(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get list of all users you've had conversations with.
+    Returns users sorted by most recent message.
+    
+    Security: Only shows conversations involving the authenticated user.
+    """
+    from sqlalchemy import or_, and_, func as sql_func
+    from sqlalchemy.orm import aliased
+    
+    # Subquery to get the latest message for each conversation
+    # A conversation is between current_user and another user
+    latest_msg_subq = (
+        db.query(
+            sql_func.greatest(Message.sender_id, Message.recipient_id).label('user1'),
+            sql_func.least(Message.sender_id, Message.recipient_id).label('user2'),
+            sql_func.max(Message.created_at).label('last_time')
+        )
+        .filter(
+            or_(
+                Message.sender_id == current_user.id,
+                Message.recipient_id == current_user.id
+            )
+        )
+        .group_by(
+            sql_func.greatest(Message.sender_id, Message.recipient_id),
+            sql_func.least(Message.sender_id, Message.recipient_id)
+        )
+        .subquery()
+    )
+    
+    # Get the actual latest messages with their content
+    conversations_data = (
+        db.query(Message, User)
+        .join(
+            latest_msg_subq,
+            and_(
+                or_(
+                    and_(Message.sender_id == latest_msg_subq.c.user1, Message.recipient_id == latest_msg_subq.c.user2),
+                    and_(Message.sender_id == latest_msg_subq.c.user2, Message.recipient_id == latest_msg_subq.c.user1)
+                ),
+                Message.created_at == latest_msg_subq.c.last_time
+            )
+        )
+        .join(
+            User,
+            or_(
+                and_(User.id == Message.sender_id, Message.sender_id != current_user.id),
+                and_(User.id == Message.recipient_id, Message.recipient_id != current_user.id)
+            )
+        )
+        .order_by(Message.created_at.desc())
+        .all()
+    )
+    
+    return [
+        ConversationUser(
+            id=user.id,
+            profile_name=user.profile_name,
+            last_message=message.content[:100] + ('...' if len(message.content) > 100 else ''),
+            last_message_time=message.created_at.isoformat()
+        )
+        for message, user in conversations_data
+    ]
+
+
+@app.get("/messages/{user_id}", response_model=list[MessageResponseData])
+async def get_conversation_messages(
+    user_id: UUID,
+    limit: int = 100,
+    offset: int = 0,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get all messages between you and a specific user.
+    Messages are ordered by timestamp (oldest first for chat display).
+    
+    Security features:
+    - Only returns messages where current_user is sender or recipient
+    - Prevents reading other people's conversations
+    - Pagination support
+    
+    Query parameters:
+    - limit: Max messages to return (default 100, max 500)
+    - offset: Skip first N messages (for pagination)
+    """
+    from sqlalchemy import or_, and_
+    
+    # Verify the other user exists
+    other_user = db.query(User).filter(User.id == user_id).first()
+    if not other_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Enforce limits
+    if limit > 500:
+        limit = 500
+    elif limit < 1:
+        limit = 100
+    
+    # Get messages between current_user and the specified user
+    messages = (
+        db.query(Message)
+        .filter(
+            or_(
+                and_(Message.sender_id == current_user.id, Message.recipient_id == user_id),
+                and_(Message.sender_id == user_id, Message.recipient_id == current_user.id)
+            )
+        )
+        .order_by(Message.created_at.asc())  # Oldest first
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    
+    return [
+        MessageResponseData(
+            id=msg.id,
+            sender_id=msg.sender_id,
+            recipient_id=msg.recipient_id,
+            content=msg.content,
+            created_at=msg.created_at.isoformat()
+        )
+        for msg in messages
+    ]
+
+ 
