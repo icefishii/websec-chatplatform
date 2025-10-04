@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # WebSec Chat Platform - API Testing Script (Linux/macOS)
 # This script demonstrates all available API endpoints
