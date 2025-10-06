@@ -30,12 +30,11 @@ services:
   frontend:
     build: ./frontend
     restart: always
-    environment:
-      NEXT_PUBLIC_API_URL: https://localhost/api/v1
     expose:
       - "3000"
     volumes:
       - ./frontend:/app
+      - /app/node_modules
 
   nginx:
     image: nginx:stable
