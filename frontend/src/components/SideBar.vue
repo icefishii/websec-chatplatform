@@ -2,28 +2,9 @@
 import { ref, watch, computed } from "vue";
 import { Fa6User } from "vue-icons-plus/fa6";
 import { useAuth } from "@/api/useAuth";
-import { tryCatch } from "@/api/utils";
+import { tryCatch, type Conversation, type SearchResult, type User } from "@/api/utils";
 import { getConversations, findProfilesByName } from "@/api/messages";
 import { useRouter, useRoute } from "vue-router";
-
-interface Conversation {
-  id: string;
-  profile_name: string;
-  last_message?: string;
-  last_message_time?: string;
-}
-
-interface User {
-  id: string;
-  username: string;
-  lastMessage?: string;
-  isOnline?: boolean;
-}
-
-interface SearchResult {
-  id: string;
-  profile_name: string;
-}
 
 // Define window interface extension
 declare global {
@@ -90,7 +71,7 @@ const updateLastMessage = (userId: string, message: string, profileName?: string
 };
 
 // Make it available globally via window for ChatView to access
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   window.__updateSidebarMessage = updateLastMessage;
 }
 
@@ -122,7 +103,7 @@ watch(searchTerm, (newVal) => {
   }
 
   const trimmed = newVal.trim();
-  
+
   if (!trimmed) {
     showSearchResults.value = false;
     searchResults.value = [];
@@ -133,14 +114,14 @@ watch(searchTerm, (newVal) => {
     if (trimmed.length > 0) {
       isSearching.value = true;
       const [results, error] = await tryCatch(findProfilesByName(trimmed, 20));
-      
+
       if (error) {
         console.error("Search error:", error);
         searchResults.value = [];
       } else {
         searchResults.value = Array.isArray(results) ? results : [];
       }
-      
+
       showSearchResults.value = true;
       isSearching.value = false;
     }
@@ -158,7 +139,7 @@ function openChat(id: string) {
 
 async function startChatWithUser(userId: string, profileName: string) {
   const existingConvo = users.value.find((u) => u.id === userId);
-  
+
   if (existingConvo) {
     openChat(userId);
   } else {
@@ -189,12 +170,15 @@ async function startChatWithUser(userId: string, profileName: string) {
         <!-- Search results view -->
         <div v-if="showSearchResults">
           <div class="text-emerald-300 text-xs font-semibold mb-2 px-2">Search Results</div>
-          
+
           <div v-if="isSearching" class="flex justify-center py-4">
             <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-400"></div>
           </div>
 
-          <div v-else-if="searchResults.length === 0" class="text-emerald-400 text-sm text-center py-4">
+          <div
+            v-else-if="searchResults.length === 0"
+            class="text-emerald-400 text-sm text-center py-4"
+          >
             No users found matching "{{ searchTerm }}"
           </div>
 
@@ -218,7 +202,13 @@ async function startChatWithUser(userId: string, profileName: string) {
           </div>
 
           <button
-            @click="() => { searchTerm = ''; showSearchResults = false; searchResults = [] }"
+            @click="
+              () => {
+                searchTerm = '';
+                showSearchResults = false;
+                searchResults = [];
+              }
+            "
             class="w-full mt-3 px-3 py-1 bg-emerald-800 text-emerald-200 rounded-md text-sm hover:bg-emerald-700"
           >
             Back to conversations
@@ -243,7 +233,9 @@ async function startChatWithUser(userId: string, profileName: string) {
                 @click="openChat(user.id)"
                 :class="[
                   'flex items-start gap-3 px-2 py-2 rounded-md hover:bg-emerald-900 cursor-pointer transition-colors',
-                  selectedConversationId === user.id ? 'bg-emerald-800 ring-1 ring-emerald-600' : ''
+                  selectedConversationId === user.id
+                    ? 'bg-emerald-800 ring-1 ring-emerald-600'
+                    : '',
                 ]"
               >
                 <div class="relative mt-1">
@@ -252,7 +244,14 @@ async function startChatWithUser(userId: string, profileName: string) {
 
                 <div class="min-w-0 flex-1">
                   <div class="flex items-center justify-between gap-2">
-                    <div :class="['font-semibold text-sm truncate', selectedConversationId === user.id ? 'text-emerald-100' : 'text-emerald-100']">
+                    <div
+                      :class="[
+                        'font-semibold text-sm truncate',
+                        selectedConversationId === user.id
+                          ? 'text-emerald-100'
+                          : 'text-emerald-100',
+                      ]"
+                    >
                       {{ user.username }}
                     </div>
                   </div>

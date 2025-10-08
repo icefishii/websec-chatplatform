@@ -2,17 +2,9 @@
 import { ref, onMounted, watch, nextTick } from "vue";
 import { useRoute } from "vue-router";
 import { getConversationMessages, sendMessage } from "@/api/messages";
-import { tryCatch } from "@/api/utils";
+import { tryCatch, type ChatMessage } from "@/api/utils";
 import Bubble from "@/components/Bubble.vue";
 import { useAuth } from "@/api/useAuth";
-
-interface ChatMessage {
-  id?: string;
-  sender_id?: string | null;
-  recipient_id?: string | null;
-  content: string;
-  created_at?: string;
-}
 
 // Define window interface extension
 declare global {
@@ -90,7 +82,7 @@ onMounted(() => {
 async function sendHandler() {
   if (!userId.value || !newMessage.value.trim()) return;
   const messageContent = newMessage.value.trim();
-  
+
   try {
     const sent = await sendMessage(userId.value, messageContent);
     const item: ChatMessage =
@@ -103,12 +95,12 @@ async function sendHandler() {
           };
     messages.value.push(item);
     newMessage.value = "";
-    
+
     // Update sidebar with latest message
-    if (typeof window !== 'undefined' && window.__updateSidebarMessage) {
+    if (typeof window !== "undefined" && window.__updateSidebarMessage) {
       window.__updateSidebarMessage(userId.value, messageContent, otherUserProfile.value);
     }
-    
+
     await nextTick();
     scrollToBottom();
   } catch (e) {
@@ -131,9 +123,7 @@ function scrollToBottom() {
           <div class="h-6 w-6 animate-spin rounded-full border-b-2 border-emerald-400"></div>
         </div>
 
-        <div v-else-if="isError" class="py-6 text-center text-red-400">
-          Failed to load messages
-        </div>
+        <div v-else-if="isError" class="py-6 text-center text-red-400">Failed to load messages</div>
 
         <template v-else>
           <Bubble v-for="msg in messages" :key="msg.id || msg.created_at" :message="msg" />

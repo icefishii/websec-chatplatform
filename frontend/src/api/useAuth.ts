@@ -1,11 +1,5 @@
 import { ref } from "vue";
-
-interface AuthUser {
-  id: string;
-  username: string;
-  // allow other unknown fields from the backend without using `any`
-  [key: string]: unknown;
-}
+import type { AuthUser } from "./utils";
 
 const currentUser = ref<AuthUser | null>(null);
 let pendingFetch: Promise<AuthUser | null> | null = null;
