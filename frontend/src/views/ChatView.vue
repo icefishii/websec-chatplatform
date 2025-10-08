@@ -6,9 +6,6 @@ import { tryCatch } from "@/api/utils";
 import Bubble from "@/components/Bubble.vue";
 import { useAuth } from "@/api/useAuth";
 
-/* Replace the generic Message type with a local ChatMessage type that explicitly
-   allows null for sender_id/recipient_id to avoid the TS error when creating
-   transient messages with null sender_id. */
 interface ChatMessage {
   id?: string;
   sender_id?: string | null;
@@ -17,14 +14,22 @@ interface ChatMessage {
   created_at?: string;
 }
 
+// Define window interface extension
+declare global {
+  interface Window {
+    __updateSidebarMessage?: (userId: string, message: string, profileName?: string) => void;
+  }
+}
+
 const route = useRoute();
-const { currentUser } = useAuth(); // observe auth
+const { currentUser } = useAuth();
 const userId = ref<string | null>((route.params.id as string) || null);
 const messages = ref<ChatMessage[]>([]);
 const newMessage = ref("");
 const isLoading = ref(false);
 const isError = ref(false);
 const listRef = ref<HTMLElement | null>(null);
+const otherUserProfile = ref<string>("");
 
 async function loadMessages() {
   if (!userId.value) return;
@@ -43,11 +48,26 @@ async function loadMessages() {
   isLoading.value = false;
 }
 
+// Fetch other user's profile name for sidebar updates
+async function fetchOtherUserProfile() {
+  if (!userId.value) return;
+  try {
+    const res = await fetch(`/api/v1/users/${userId.value}`, { credentials: "include" });
+    if (res.ok) {
+      const data = await res.json();
+      otherUserProfile.value = data.profile_name || data.username || "";
+    }
+  } catch (e) {
+    console.warn("Could not fetch user profile:", e);
+  }
+}
+
 watch(
   () => route.params.id,
   (v) => {
     userId.value = v as string;
     loadMessages();
+    fetchOtherUserProfile();
   },
   { immediate: true },
 );
@@ -55,28 +75,40 @@ watch(
 watch(
   () => currentUser.value,
   () => {
-    if (userId.value) loadMessages();
+    if (userId.value) {
+      loadMessages();
+      fetchOtherUserProfile();
+    }
   },
 );
 
 onMounted(() => {
   loadMessages();
+  fetchOtherUserProfile();
 });
 
 async function sendHandler() {
   if (!userId.value || !newMessage.value.trim()) return;
+  const messageContent = newMessage.value.trim();
+  
   try {
-    const sent = await sendMessage(userId.value, newMessage.value.trim());
+    const sent = await sendMessage(userId.value, messageContent);
     const item: ChatMessage =
       typeof sent === "object"
         ? (sent as ChatMessage)
         : {
-            content: newMessage.value.trim(),
-            sender_id: null,
+            content: messageContent,
+            sender_id: currentUser.value?.id || null,
             created_at: new Date().toISOString(),
           };
     messages.value.push(item);
     newMessage.value = "";
+    
+    // Update sidebar with latest message
+    if (typeof window !== 'undefined' && window.__updateSidebarMessage) {
+      window.__updateSidebarMessage(userId.value, messageContent, otherUserProfile.value);
+    }
+    
     await nextTick();
     scrollToBottom();
   } catch (e) {

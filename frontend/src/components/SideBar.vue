@@ -3,7 +3,7 @@ import { ref, watch, computed } from "vue";
 import { Fa6User } from "vue-icons-plus/fa6";
 import { useAuth } from "@/api/useAuth";
 import { tryCatch } from "@/api/utils";
-import { getConversations, sendMessage, findProfilesByName } from "@/api/messages";
+import { getConversations, findProfilesByName } from "@/api/messages";
 import { useRouter, useRoute } from "vue-router";
 
 interface Conversation {
@@ -20,16 +20,28 @@ interface User {
   isOnline?: boolean;
 }
 
+interface SearchResult {
+  id: string;
+  profile_name: string;
+}
+
+// Define window interface extension
+declare global {
+  interface Window {
+    __updateSidebarMessage?: (userId: string, message: string, profileName?: string) => void;
+  }
+}
+
 const { currentUser } = useAuth();
 const users = ref<User[]>([]);
 const isLoading = ref(false);
 const isError = ref(false);
 
 const searchTerm = ref("");
-const showNewConvo = ref(false);
-const newConvoName = ref("");
-const newConvoMessage = ref("");
-const newConvoError = ref<string | null>(null);
+const searchResults = ref<SearchResult[]>([]);
+const isSearching = ref(false);
+const showSearchResults = ref(false);
+let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
 const router = useRouter();
 const route = useRoute();
@@ -59,6 +71,29 @@ const fetchConversations = async () => {
   isLoading.value = false;
 };
 
+// Expose method to update last message from outside
+const updateLastMessage = (userId: string, message: string, profileName?: string) => {
+  const existingUser = users.value.find((u) => u.id === userId);
+  if (existingUser) {
+    // Update existing conversation
+    existingUser.lastMessage = message;
+    // Move to top of list
+    users.value = [existingUser, ...users.value.filter((u) => u.id !== userId)];
+  } else if (profileName) {
+    // Add new conversation at top
+    users.value.unshift({
+      id: userId,
+      username: profileName,
+      lastMessage: message,
+    });
+  }
+};
+
+// Make it available globally via window for ChatView to access
+if (typeof window !== 'undefined') {
+  window.__updateSidebarMessage = updateLastMessage;
+}
+
 watch(
   () => currentUser.value,
   (val) => {
@@ -80,62 +115,59 @@ const filteredUsers = computed(() => {
   );
 });
 
+// Debounced search function
+watch(searchTerm, (newVal) => {
+  if (searchTimeout) {
+    clearTimeout(searchTimeout);
+  }
+
+  const trimmed = newVal.trim();
+  
+  if (!trimmed) {
+    showSearchResults.value = false;
+    searchResults.value = [];
+    return;
+  }
+
+  searchTimeout = setTimeout(async () => {
+    if (trimmed.length > 0) {
+      isSearching.value = true;
+      const [results, error] = await tryCatch(findProfilesByName(trimmed, 20));
+      
+      if (error) {
+        console.error("Search error:", error);
+        searchResults.value = [];
+      } else {
+        searchResults.value = Array.isArray(results) ? results : [];
+      }
+      
+      showSearchResults.value = true;
+      isSearching.value = false;
+    }
+  }, 500);
+});
+
 function openChat(id: string) {
-  // clear search so list stays visible after navigation
   searchTerm.value = "";
+  showSearchResults.value = false;
+  searchResults.value = [];
   router.push({ name: "chat", params: { id } }).catch(() => {
     router.push(`/chat/${id}`).catch(() => {});
   });
 }
 
-async function startNewConvoByName(name: string, firstMessage?: string) {
-  newConvoError.value = null;
-  if (!name.trim()) {
-    newConvoError.value = "Please enter a profile name";
-    return;
-  }
-  isLoading.value = true;
-  // try to resolve profile by name from backend (robust: returns [] if backend doesn't have)
-  const [profiles, pErr] = await tryCatch(findProfilesByName(name.trim()));
-  if (pErr) {
-    console.error(pErr);
-    newConvoError.value = "Failed to search users";
-    isLoading.value = false;
-    return;
-  }
-  if (!Array.isArray(profiles) || profiles.length === 0) {
-    newConvoError.value = `No user found with name "${name.trim()}"`;
-    isLoading.value = false;
-    return;
-  }
-  // pick first match
-  const target = profiles[0];
-  try {
-    if (firstMessage && firstMessage.trim()) {
-      // sending a message will effectively create the conversation server-side
-      await sendMessage(target.id, firstMessage.trim());
-    }
-    // optimistic UI: insert into users list and navigate
-    const exists = users.value.find((u) => u.id === target.id);
-    if (!exists) {
-      users.value.unshift({
-        id: target.id,
-        username: target.profile_name ?? target.username ?? name.trim(),
-        lastMessage: firstMessage?.trim() || "",
-      });
-    }
-    // clear search and close modal
-    searchTerm.value = "";
-    showNewConvo.value = false;
-    newConvoName.value = "";
-    newConvoMessage.value = "";
-    newConvoError.value = null;
-    openChat(target.id);
-  } catch (e) {
-    console.error(e);
-    newConvoError.value = "Failed to start conversation";
-  } finally {
-    isLoading.value = false;
+async function startChatWithUser(userId: string, profileName: string) {
+  const existingConvo = users.value.find((u) => u.id === userId);
+  
+  if (existingConvo) {
+    openChat(userId);
+  } else {
+    users.value.unshift({
+      id: userId,
+      username: profileName,
+      lastMessage: "",
+    });
+    openChat(userId);
   }
 }
 </script>
@@ -154,145 +186,95 @@ async function startNewConvoByName(name: string, firstMessage?: string) {
       />
 
       <div class="mt-2">
-        <div v-if="isLoading" class="flex justify-center py-4">
-          <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-400"></div>
-        </div>
+        <!-- Search results view -->
+        <div v-if="showSearchResults">
+          <div class="text-emerald-300 text-xs font-semibold mb-2 px-2">Search Results</div>
+          
+          <div v-if="isSearching" class="flex justify-center py-4">
+            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-400"></div>
+          </div>
 
-        <div v-else-if="isError" class="text-red-400 text-center py-4">
-          Failed to load conversations
-        </div>
+          <div v-else-if="searchResults.length === 0" class="text-emerald-400 text-sm text-center py-4">
+            No users found matching "{{ searchTerm }}"
+          </div>
 
-        <div v-else>
-          <div v-if="filteredUsers.length">
+          <div v-else class="space-y-1">
             <div
-              v-for="user in filteredUsers"
-              :key="user.id"
-              @click="openChat(user.id)"
-              :class="[
-                'flex items-start gap-3 px-2 py-2 rounded-md hover:bg-emerald-900 cursor-pointer transition-colors',
-                selectedConversationId === user.id ? 'bg-emerald-800 ring-1 ring-emerald-600' : ''
-              ]"
+              v-for="result in searchResults"
+              :key="result.id"
+              @click="startChatWithUser(result.id, result.profile_name)"
+              class="flex items-start gap-3 px-2 py-2 rounded-md hover:bg-emerald-900 cursor-pointer transition-colors"
             >
               <div class="relative mt-1">
                 <Fa6User class="text-emerald-400 w-5 h-5" />
               </div>
-
               <div class="min-w-0 flex-1">
-                <div class="flex items-center justify-between gap-2">
-                  <div :class="['font-semibold text-sm truncate', selectedConversationId === user.id ? 'text-emerald-100' : 'text-emerald-100']">
-                    {{ user.username }}
-                  </div>
+                <div class="text-emerald-100 font-semibold text-sm truncate">
+                  {{ result.profile_name }}
                 </div>
-                <div class="text-emerald-200 text-xs truncate mt-0.5">
-                  {{ user.lastMessage }}
-                </div>
+                <div class="text-emerald-400 text-xs">Click to start chat</div>
               </div>
             </div>
           </div>
 
-          <div v-else class="text-emerald-400 text-sm text-center py-4">
-            No conversations match.
-            <div class="mt-2">
-              <button
-                v-if="searchTerm.trim() && !showNewConvo"
-                @click="
-                  () => {
-                    showNewConvo = true;
-                    newConvoName = searchTerm;
-                  }
-                "
-                class="px-3 py-1 mt-2 bg-emerald-400 text-emerald-950 rounded-md"
-              >
-                Start conversation with "{{ searchTerm }}"
-              </button>
-            </div>
+          <button
+            @click="() => { searchTerm = ''; showSearchResults = false; searchResults = [] }"
+            class="w-full mt-3 px-3 py-1 bg-emerald-800 text-emerald-200 rounded-md text-sm hover:bg-emerald-700"
+          >
+            Back to conversations
+          </button>
+        </div>
+
+        <!-- Conversations view -->
+        <div v-else>
+          <div v-if="isLoading" class="flex justify-center py-4">
+            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-400"></div>
           </div>
 
-          <!-- New conversation form -->
-          <div v-if="showNewConvo" class="mt-3 p-2 bg-emerald-900 rounded-md">
-            <label class="text-emerald-100 text-xs">Profile name</label>
-            <input
-              v-model="newConvoName"
-              type="text"
-              class="w-full mt-1 px-2 py-1 rounded bg-emerald-800 text-emerald-100"
-            />
-
-            <label class="text-emerald-100 text-xs mt-2 block">First message (optional)</label>
-            <input
-              v-model="newConvoMessage"
-              type="text"
-              class="w-full mt-1 px-2 py-1 rounded bg-emerald-800 text-emerald-100"
-            />
-
-            <div class="flex gap-2 mt-2">
-              <button
-                @click="() => startNewConvoByName(newConvoName, newConvoMessage)"
-                class="px-3 py-1 bg-emerald-400 text-emerald-950 rounded-md"
-              >
-                Start
-              </button>
-              <button
-                @click="
-                  () => {
-                    showNewConvo = false;
-                    newConvoError = null;
-                  }
-                "
-                class="px-3 py-1 bg-emerald-700 text-emerald-200 rounded-md"
-              >
-                Cancel
-              </button>
-            </div>
-
-            <div v-if="newConvoError" class="text-red-400 text-sm mt-2">
-              {{ newConvoError }}
-            </div>
+          <div v-else-if="isError" class="text-red-400 text-center py-4">
+            Failed to load conversations
           </div>
 
-          <div v-if="users.length === 0" class="text-emerald-400 text-sm text-center py-4">
-            No conversations yet
+          <div v-else>
+            <div v-if="filteredUsers.length">
+              <div
+                v-for="user in filteredUsers"
+                :key="user.id"
+                @click="openChat(user.id)"
+                :class="[
+                  'flex items-start gap-3 px-2 py-2 rounded-md hover:bg-emerald-900 cursor-pointer transition-colors',
+                  selectedConversationId === user.id ? 'bg-emerald-800 ring-1 ring-emerald-600' : ''
+                ]"
+              >
+                <div class="relative mt-1">
+                  <Fa6User class="text-emerald-400 w-5 h-5" />
+                </div>
+
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center justify-between gap-2">
+                    <div :class="['font-semibold text-sm truncate', selectedConversationId === user.id ? 'text-emerald-100' : 'text-emerald-100']">
+                      {{ user.username }}
+                    </div>
+                  </div>
+                  <div class="text-emerald-200 text-xs truncate mt-0.5">
+                    {{ user.lastMessage }}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div v-else-if="users.length === 0" class="text-emerald-400 text-sm text-center py-4">
+              No conversations yet
+            </div>
+
+            <div v-else class="text-emerald-400 text-sm text-center py-4">
+              No conversations match your filter
+            </div>
           </div>
         </div>
       </div>
     </div>
   </aside>
-
-  <!-- New convo modal (full-screen) -->
-  <div
-    v-if="showNewConvo"
-    class="fixed inset-0 z-60 flex items-center justify-center"
-    role="dialog"
-    aria-modal="true"
-  >
-    <div class="absolute inset-0 bg-black/60" @click="() => { showNewConvo = false; searchTerm = '' }"></div>
-    <div class="relative w-full max-w-md p-4 bg-emerald-950 rounded-md shadow-lg">
-      <h3 class="text-emerald-100 font-semibold mb-2">Start conversation</h3>
-      <label class="text-emerald-300 text-xs">Profile name</label>
-      <input v-model="newConvoName" type="text" class="w-full mt-1 px-2 py-1 rounded bg-emerald-800 text-emerald-100" />
-
-      <label class="text-emerald-300 text-xs mt-3 block">First message (optional)</label>
-      <input v-model="newConvoMessage" type="text" class="w-full mt-1 px-2 py-1 rounded bg-emerald-800 text-emerald-100" />
-
-      <div class="flex gap-2 justify-end mt-4">
-        <button
-          @click="() => { showNewConvo = false; searchTerm = '' }"
-          class="px-3 py-1 bg-emerald-700 text-emerald-200 rounded-md"
-        >
-          Cancel
-        </button>
-        <button
-          @click="() => startNewConvoByName(newConvoName, newConvoMessage)"
-          class="px-3 py-1 bg-emerald-400 text-emerald-950 rounded-md"
-        >
-          Start
-        </button>
-      </div>
-
-      <div v-if="newConvoError" class="text-red-400 text-sm mt-2">
-        {{ newConvoError }}
-      </div>
-    </div>
-  </div>
 </template>
 
 <style scoped>
