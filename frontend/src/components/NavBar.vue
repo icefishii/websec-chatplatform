@@ -2,6 +2,7 @@
 import { useAuth } from "@/api/useAuth";
 import { onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
+import { Fa6User } from "vue-icons-plus/fa6";
 
 const { currentUser, fetchCurrentUser, logout } = useAuth();
 const router = useRouter();
@@ -13,9 +14,12 @@ async function logoutWrapper() {
 }
 
 // Watch for route changes to refresh user state
-watch(() => router.currentRoute.value.path, async () => {
-  await fetchCurrentUser();
-});
+watch(
+  () => router.currentRoute.value.path,
+  async () => {
+    await fetchCurrentUser();
+  },
+);
 
 onMounted(fetchCurrentUser);
 </script>
@@ -28,38 +32,36 @@ onMounted(fetchCurrentUser);
       <img alt="Vue logo" src="@/assets/logo.svg" width="32" height="32" />
     </RouterLink>
 
-    <div class="flex gap-4">
+    <div class="flex gap-2">
       <template v-if="currentUser">
-        <RouterLink 
-          to="/" 
-          custom 
-          v-slot="{ navigate }"
-        >
-          <a 
-            @click="async (e) => { 
-              e.preventDefault(); 
-              await logoutWrapper(); 
-              navigate(); 
-            }" 
-            class="text-emerald-400 px-3 py-1 border rounded transition hover:bg-emerald-900"
+        <RouterLink to="/" custom v-slot="{ navigate }">
+          <a
+            @click="
+              async (e) => {
+                e.preventDefault();
+                await logoutWrapper();
+                navigate();
+              }
+            "
+            class="text-emerald-400 border rounded transition hover:bg-emerald-900"
           >
             Logout
           </a>
         </RouterLink>
-        <span class="px-3 py-1 rounded transition">
-          {{ currentUser.username }}
+        <span class="flex gap-2 px-3 py-1 rounded transition">
+          <Fa6User /> {{ currentUser.username }}
         </span>
       </template>
 
       <template v-else>
-        <RouterLink 
-          to="/login" 
+        <RouterLink
+          to="/login"
           class="text-emerald-400 px-3 py-1 border rounded transition hover:bg-emerald-900"
         >
           Login
         </RouterLink>
-        <RouterLink 
-          to="/register" 
+        <RouterLink
+          to="/register"
           class="text-emerald-400 px-3 py-1 border rounded transition hover:bg-emerald-900"
         >
           Register

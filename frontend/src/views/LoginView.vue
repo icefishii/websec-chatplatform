@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { useUserStore } from "@/store/user";
 import { useRouter } from "vue-router";
+import { tryCatch } from "@/api/utils";
+import { login } from "@/api/auth";
 
 const router = useRouter();
-const userStore = useUserStore();
 
 const username = ref("");
 const password = ref("");
@@ -14,14 +14,18 @@ const error = ref("");
 async function handleLogin() {
   error.value = "";
   loading.value = true;
-  try {
-    await userStore.login(username.value, password.value);
-    router.push("/");
-  } catch (err: unknown) {
+
+  const [, err] = await tryCatch(login(username.value, password.value));
+
+  if (err) {
+    // Handle error safely — your backend sends JSON with { detail }
     error.value = (err as Error).message || "Login failed";
-  } finally {
-    loading.value = false;
+  } else {
+    // Successful login — redirect
+    router.push("/");
   }
+
+  loading.value = false;
 }
 </script>
 
@@ -29,28 +33,40 @@ async function handleLogin() {
   <div class="login-container">
     <h1>Login</h1>
     <form @submit.prevent="handleLogin">
-      <label>Username </label>
-      <input v-model="username" required /><br />
+      <label>Username</label>
+      <input v-model="username" required class="border rounded p-1 w-full mb-2" />
 
-      <label>Password </label>
-      <input v-model="password" type="password" required /><br />
+      <label>Password</label>
+      <input v-model="password" type="password" required class="border rounded p-1 w-full" />
 
-      <button :disabled="loading">
+      <button
+        :disabled="loading"
+        class="px-3 py-1 border rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+      >
         {{ loading ? "Logging in..." : "Login" }}
       </button>
     </form>
 
-    <RouterLink to="/register">No account yet? Register</RouterLink>
-    <p v-if="error" class="error">{{ error }}</p>
+    <RouterLink to="/register" class="text-emerald-500 hover:underline block mt-4">
+      No account yet? Register
+    </RouterLink>
+
+    <p v-if="error" class="error mt-2">{{ error }}</p>
   </div>
 </template>
 
 <style scoped>
 .login-container {
   max-width: 400px;
-  margin: 2rem auto;
+  margin: 4rem auto;
+  display: flexbox;
+  align-content: center;
 }
 .error {
   color: red;
+}
+
+button {
+  margin-top: 1rem;
 }
 </style>

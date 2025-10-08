@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { RouterView } from "vue-router";
 import NavBar from "@/components/NavBar.vue";
+import SideBar from "./components/SideBar.vue";
 </script>
 
 <template>
   <div class="wrapper">
     <NavBar />
+    <SideBar class="flex content-center" />
     <RouterView class="flex flex-col items-center justify-center min-h-screen" />
   </div>
 </template>

@@ -22,7 +22,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="flex min-h-screen flex-col items-center justify-between p-24">
+  <main class="flex min-h-screen flex-col items-center justify-between">
     <div v-if="isAuthenticated">
       <!-- Authenticated content -->
       <h1>Welcome {{ currentUser?.username }}!</h1>
