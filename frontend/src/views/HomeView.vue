@@ -1,37 +1,40 @@
 <script setup lang="ts">
 import { useAuth } from "@/api/useAuth";
-import { onMounted, watch, ref } from "vue";
+import { watch, ref } from "vue";
 
-const { currentUser, fetchCurrentUser } = useAuth();
-
-// Reactive reference to track authentication state
+const { currentUser } = useAuth();
 const isAuthenticated = ref(false);
+const isLoading = ref(true);
 
-// Update authentication state when currentUser changes
 watch(
-  () => currentUser,
+  () => currentUser.value,
   (newValue) => {
     isAuthenticated.value = !!newValue;
+    isLoading.value = false;
   },
   { immediate: true },
 );
-
-onMounted(async () => {
-  await fetchCurrentUser();
-});
 </script>
 
 <template>
-  <main class="flex min-h-screen flex-col items-center justify-between">
-    <div v-if="isAuthenticated">
-      <!-- Authenticated content -->
-      <h1>Welcome {{ currentUser?.username }}!</h1>
-      <!-- Your authenticated view content -->
-    </div>
-    <div v-else>
-      <!-- Non-authenticated content -->
-      <h1>Welcome to the Chat Platform</h1>
-      <p>Please login to continue</p>
+  <!-- App.vue already offsets content under the navbar (mt-16). remove duplicate margin here -->
+  <main class="flex-1 min-h-[calc(100vh-4rem)] flex items-center justify-center">
+    <div class="w-full max-w-3xl px-6 text-center">
+      <div v-if="isLoading" class="flex items-center justify-center">
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-400"></div>
+      </div>
+
+      <template v-else>
+        <h1 class="text-2xl font-semibold mb-4">Welcome to the Chat Platform</h1>
+
+        <div v-if="isAuthenticated" class="text-left">
+          <p class="text-lg">Welcome <span class="font-medium">{{ currentUser?.username }}</span> — pick a conversation on the left to start chatting.</p>
+        </div>
+
+        <div v-else class="text-center">
+          <p class="mt-4 text-lg">Please login to continue</p>
+        </div>
+      </template>
     </div>
   </main>
 </template>

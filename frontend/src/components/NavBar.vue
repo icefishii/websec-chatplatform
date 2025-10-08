@@ -26,7 +26,7 @@ onMounted(fetchCurrentUser);
 
 <template>
   <nav
-    class="fixed top-0 left-0 w-full flex justify-between items-center p-4 shadow-md bg-emerald-950"
+    class="fixed top-0 left-0 w-full h-16 flex justify-between items-center px-4 shadow-md bg-emerald-950 z-50"
   >
     <RouterLink to="/" class="flex items-center gap-2 rounded-md">
       <img alt="Vue logo" src="@/assets/logo.svg" width="32" height="32" />

@@ -1,23 +1,24 @@
 <script setup lang="ts">
-import { RouterView } from "vue-router";
+import { onMounted } from "vue";
+import { useAuth } from "@/api/useAuth";
 import NavBar from "@/components/NavBar.vue";
-import SideBar from "./components/SideBar.vue";
+import SideBar from "@/components/SideBar.vue";
+
+const { fetchCurrentUser } = useAuth();
+
+onMounted(() => {
+  fetchCurrentUser();
+});
 </script>
 
 <template>
-  <div class="wrapper">
+  <div>
     <NavBar />
-    <SideBar class="flex content-center" />
-    <RouterView class="flex flex-col items-center justify-center min-h-screen" />
+    <SideBar />
+    <main
+      class="flex-1 ml-52 min-h-[calc(100vh-4rem)] flex items-center justify-center relative z-0"
+    >
+      <RouterView />
+    </main>
   </div>
 </template>
-
-<style scoped>
-@media (min-width: 1024px) {
-  header {
-    display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
-  }
-}
-</style>

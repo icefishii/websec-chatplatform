@@ -1,24 +1,57 @@
 import { ref } from "vue";
-import { getMe, logout as apiLogout } from "@/api/auth";
-import { tryCatch } from "@/api/utils";
 
-const currentUser = ref<{ id: string; username: string } | null>(null);
+interface AuthUser {
+  id: string;
+  username: string;
+  // allow other unknown fields from the backend without using `any`
+  [key: string]: unknown;
+}
 
-export function useAuth() {
-  async function fetchCurrentUser() {
-    const [user, error] = await tryCatch(getMe());
-    if (error) console.error(error.message);
-    else if (user) currentUser.value = user;
-  }
+const currentUser = ref<AuthUser | null>(null);
+let pendingFetch: Promise<AuthUser | null> | null = null;
 
-  async function logout() {
-    await apiLogout();
+export async function fetchCurrentUser(force = false): Promise<AuthUser | null> {
+  // If we already have a user and not forcing, return it
+  if (!force && currentUser.value !== null) return currentUser.value;
+  // If a fetch is already in progress, return the same promise
+  if (pendingFetch) return pendingFetch;
+
+  pendingFetch = (async () => {
+    try {
+      const res = await fetch("/api/v1/me", { credentials: "include" });
+      if (res.status === 401) {
+        currentUser.value = null;
+        return null;
+      }
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || res.statusText);
+      }
+      const data = (await res.json()) as AuthUser;
+      currentUser.value = data;
+      return data;
+    } catch (err) {
+      console.error("fetchCurrentUser error:", err);
+      currentUser.value = null;
+      return null;
+    } finally {
+      pendingFetch = null;
+    }
+  })();
+
+  return pendingFetch;
+}
+
+export async function logout(): Promise<void> {
+  try {
+    await fetch("/api/v1/logout", { method: "POST", credentials: "include" });
+  } catch (e) {
+    console.error("logout error", e);
+  } finally {
     currentUser.value = null;
   }
+}
 
-  return {
-    currentUser,
-    fetchCurrentUser,
-    logout,
-  };
+export function useAuth() {
+  return { currentUser, fetchCurrentUser, logout };
 }
