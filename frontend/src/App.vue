@@ -12,12 +12,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <div>
+  <div class="min-h-screen bg-[#242424] text-emerald-100">
     <NavBar />
     <SideBar />
-    <main
-      class="flex-1 ml-52 min-h-[calc(100vh-4rem)] flex items-center justify-center relative z-0"
-    >
+    <main class="fixed left-52 right-0 top-16 bottom-0 overflow-hidden">
       <RouterView />
     </main>
   </div>

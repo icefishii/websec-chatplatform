@@ -37,19 +37,29 @@ const formattedTime = computed(() => {
 </script>
 
 <template>
-  <div :class="['flex items-end gap-2 my-2', isMine ? 'justify-end' : 'justify-start']">
-    <div v-if="!isMine" class="text-emerald-400 w-6 h-6 flex items-center justify-center">
-      <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        <path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/>
+  <div :class="['flex items-end gap-3', isMine ? 'justify-end' : 'justify-start']">
+    <div
+      v-if="!isMine"
+      class="flex h-6 w-6 items-center justify-center text-emerald-400"
+    >
+      <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path
+          d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"
+        />
       </svg>
     </div>
 
-    <div :class="['max-w-[70%] break-words p-3 rounded-lg', isMine ? 'bg-emerald-400 text-emerald-950 rounded-br-none' : 'bg-emerald-900 text-emerald-100 rounded-bl-none']">
-      <div class="text-sm whitespace-pre-wrap">{{ message.content }}</div>
-      <div class="text-xs mt-1 opacity-70 text-right">{{ formattedTime }}</div>
+    <div
+      :class="[
+        'max-w-[70%] break-words rounded-lg px-4 py-3 shadow',
+        isMine
+          ? 'rounded-br-none bg-emerald-400 text-emerald-950'
+          : 'rounded-bl-none bg-emerald-900 text-emerald-100'
+      ]"
+    >
+      <div class="whitespace-pre-wrap text-sm">{{ message.content }}</div>
+      <div class="mt-1 text-right text-xs opacity-70">{{ formattedTime }}</div>
     </div>
-
-    <div v-if="isMine" class="text-emerald-400 w-6 h-6 flex items-center justify-center" aria-hidden="true"></div>
   </div>
 </template>
 

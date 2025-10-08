@@ -54,8 +54,7 @@ watch(
 
 watch(
   () => currentUser.value,
-  (val, oldVal) => {
-    console.log(val, oldVal);
+  () => {
     if (userId.value) loadMessages();
   },
 );
@@ -92,36 +91,46 @@ function scrollToBottom() {
 </script>
 
 <template>
-  <main class="flex-1 min-h-[calc(100vh-4rem)] flex items-stretch">
-    <div
-      class="w-full max-w-4xl mx-auto px-4 py-6 flex flex-col"
-      style="min-height: calc(100vh - 6rem)"
-    >
-      <div class="flex-1 overflow-auto mb-4" ref="listRef">
-        <div v-if="isLoading" class="flex items-center justify-center py-6">
-          <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-400"></div>
+  <div class="h-full w-full flex justify-center px-4 py-4">
+    <div class="w-full max-w-4xl flex flex-col h-full gap-4">
+      <!-- Messages container -->
+      <div ref="listRef" class="flex-1 overflow-y-auto space-y-3 px-2">
+        <div v-if="isLoading" class="flex items-center justify-center py-8">
+          <div class="h-6 w-6 animate-spin rounded-full border-b-2 border-emerald-400"></div>
         </div>
 
-        <div v-else-if="isError" class="text-red-400 text-center py-4">Failed to load messages</div>
+        <div v-else-if="isError" class="py-6 text-center text-red-400">
+          Failed to load messages
+        </div>
 
-        <div v-else class="px-2">
+        <template v-else>
           <Bubble v-for="msg in messages" :key="msg.id || msg.created_at" :message="msg" />
-        </div>
+          <div v-if="messages.length === 0" class="py-6 text-center text-emerald-200">
+            No messages yet. Say hi!
+          </div>
+        </template>
       </div>
 
-      <form @submit.prevent="sendHandler" class="flex gap-2 items-center">
+      <!-- Message input - always at bottom -->
+      <form
+        @submit.prevent="sendHandler"
+        class="flex gap-3 rounded-lg border border-emerald-800 bg-emerald-950/80 px-4 py-3 flex-shrink-0"
+      >
         <input
           v-model="newMessage"
           type="text"
           placeholder="Write a message..."
-          class="flex-1 px-3 py-2 rounded-md bg-emerald-900 text-emerald-100 focus:outline-none"
+          class="flex-1 rounded-md bg-emerald-900 px-4 py-2 text-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-400"
         />
-        <button type="submit" class="px-4 py-2 bg-emerald-400 text-emerald-950 rounded-md">
+        <button
+          type="submit"
+          class="rounded-md bg-emerald-400 px-5 py-2 text-emerald-950 font-medium transition hover:bg-emerald-300 flex-shrink-0"
+        >
           Send
         </button>
       </form>
     </div>
-  </main>
+  </div>
 </template>
 
 <style scoped>
