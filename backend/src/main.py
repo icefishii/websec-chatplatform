@@ -221,7 +221,7 @@ async def login(
     new_session = SessionModel(
         token=session_token,
         user_id=user.id,
-        expires_at=SessionModel.calculate_expiry(days=7)
+        expires_at=SessionModel.calculate_expiry(days=1)
     )
     
     db.add(new_session)
@@ -234,7 +234,7 @@ async def login(
         httponly=True,  # Prevents JavaScript access (XSS protection)
         secure=True,     # Only sent over HTTPS
         samesite="lax",  # CSRF protection
-        max_age=7 * 24 * 60 * 60  # 7 days in seconds
+        max_age=1 * 24 * 60 * 60  # 1 day in seconds
     )
     
     return MessageResponse(message="Login successful")
