@@ -1,78 +1,30 @@
-# =========================
-# React / Next.js .gitignore
-# =========================
-
-# Node dependencies
-node_modules/
-
-# Output directories
-.next/
-out/
-dist/
-build/
-
-# Debug and profiling files
+# Logs
+logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-package-lock.json
-.pnpm-debug.log
+lerna-debug.log*
 
-# Local env files (keep example)
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-!.env.example
+node_modules
+.DS_Store
+dist
+dist-ssr
+coverage
+*.local
 
-# IDE / Editor directories
-.vscode/
-.idea/
+/cypress/videos/
+/cypress/screenshots/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 
-# OS-generated files
-.DS_Store
-Thumbs.db
-
-# Coverage and testing
-coverage/
-.nyc_output/
-jest-coverage/
-
-# Misc cache
-.next/cache/
-.cache/
-.tmp/
-temp/
-
-# Storybook
-storybook-static/
-.storybook-out/
-
-# Typescript build cache
 *.tsbuildinfo
-
-# VS Code specific
-.history/
-
-# Turbo / Vercel
-.vercel/
-.turbo/
-
-# Bun
-.bun/
-
-# Local debug artifacts
-*.log
-*.pid
-*.seed
-
-# Custom local files
-# Uncomment if you have sensitive files
-# secrets.json
