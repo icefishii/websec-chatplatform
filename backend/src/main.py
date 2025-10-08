@@ -1,9 +1,12 @@
-from fastapi import FastAPI, Depends, HTTPException, Response, Cookie
+from fastapi import FastAPI, Depends, HTTPException, Response, Cookie, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
 from uuid import UUID
+import logging
 
 from .database import engine, get_db, Base
 from .models import User, Session as SessionModel, Message
@@ -12,10 +15,85 @@ from .schemas import (
     MessageCreate, MessageResponseData, ConversationUser
 )
 
+# Configure logging for security events
+logging.basicConfig(level=logging.INFO)
+security_logger = logging.getLogger("security")
+
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(root_path="/api/v1")
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """
+    Custom validation error handler to prevent sensitive data leakage.
+    
+    Security: Removes input values from error responses to prevent password
+    and other sensitive data from being returned to the client.
+    """
+    # Define sensitive fields that should not have their values exposed
+    sensitive_fields = {'password', 'hashed_password', 'token', 'session_token', 
+                       'new_password', 'old_password', 'confirm_password'}
+    
+    # Log security-relevant validation failures (without sensitive data)
+    client_ip = request.client.host if request.client else "unknown"
+    endpoint = str(request.url.path)
+    
+    # Check if any sensitive fields had validation errors
+    sensitive_errors = []
+    for error in exc.errors():
+        if error.get('loc'):
+            for loc_part in error['loc']:
+                if isinstance(loc_part, str) and loc_part in sensitive_fields:
+                    sensitive_errors.append({
+                        'field': loc_part,
+                        'error_type': error.get('type'),
+                        'message': error.get('msg')
+                    })
+    
+    if sensitive_errors:
+        security_logger.warning(
+            f"Sensitive field validation failure - IP: {client_ip}, "
+            f"Endpoint: {endpoint}, Errors: {sensitive_errors}"
+        )
+    
+    sanitized_errors = []
+    for error in exc.errors():
+        # Create a copy of the error dict
+        sanitized_error = {
+            'type': error.get('type'),
+            'loc': error.get('loc'),
+            'msg': error.get('msg')
+        }
+        
+        # Check if this error is for a sensitive field
+        is_sensitive = False
+        if error.get('loc') and len(error['loc']) > 0:
+            # Check if any part of the location path contains sensitive field names
+            for loc_part in error['loc']:
+                if isinstance(loc_part, str) and loc_part in sensitive_fields:
+                    is_sensitive = True
+                    break
+        
+        # Only include input for non-sensitive fields
+        if not is_sensitive and 'input' in error:
+            # For non-sensitive fields, still be cautious about what we expose
+            input_value = error['input']
+            # Limit string length to prevent large payloads in error responses
+            if isinstance(input_value, str) and len(input_value) > 100:
+                sanitized_error['input'] = input_value[:100] + '...[truncated]'
+            else:
+                sanitized_error['input'] = input_value
+        
+        sanitized_errors.append(sanitized_error)
+    
+    return JSONResponse(
+        status_code=422,
+        content={"detail": sanitized_errors}
+    )
+
 
 origins = [
     "http://localhost:3000",  # dev frontend
