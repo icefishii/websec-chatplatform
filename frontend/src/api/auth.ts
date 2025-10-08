@@ -39,3 +39,12 @@ export async function getMe() {
   if (!res.ok) throw await res.json();
   return res.json();
 }
+
+export async function searchUsers(query: string, limit = 20) {
+  const params = new URLSearchParams({ q: query, limit: limit.toString() });
+  const res = await fetch(`${API_BASE}/users/search?${params.toString()}`, {
+    credentials: 'include',
+  });
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
