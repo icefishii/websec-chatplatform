@@ -1,16 +1,7 @@
-FROM node:20-bullseye
-
+FROM node:20-bullseye AS builder
 WORKDIR /app
 
-# Install all dependencies including devDependencies
 COPY package.json package-lock.json* yarn.lock* .npmrc* ./
-RUN npm install
-
-# Copy source code
+RUN npm ci
 COPY . .
-
-EXPOSE 3000
-ENV PORT=3000
-
-# Run Next.js dev server with hot reload
-CMD ["npm", "run", "dev"]
+RUN npm run build
